@@ -20,6 +20,8 @@ export default function MapDataDownload() {
     center: [lng, lat],
     zoom: zoom
     });
+
+    map.current.addControl(new mapboxgl.NavigationControl());
   });
 
   //
