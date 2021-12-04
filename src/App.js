@@ -10,9 +10,33 @@ mapboxgl.accessToken = 'pk.eyJ1IjoiY2hvY29vcmVvIiwiYSI6ImNrdDgxZG5ibzB4dGkycGxqZ
 export default function MapDataDownload() {
   const mapContainer = useRef(null);
   const map = useRef(null);
-  const [lng, setLng] = useState(-120);
-  const [lat, setLat] = useState(50);
-  const [zoom, setZoom] = useState(2);
+  const [lng, setLng] = useState(31.4606);
+  const [lat, setLat] = useState(20.7927);
+  const [zoom, setZoom] = useState(0.5);
+
+  const months = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December'
+  ];
+  function filterBy(month) {
+    const filters = ['==', 'month', month];
+    map.current.setFilter('earthquake-circles', filters);
+    map.current.setFilter('earthquake-labels', filters);
+     
+    // Set the label to the month
+    document.getElementById('month').textContent = months[month];
+  }
+
   //INIT MAP
   useEffect(() => {
     if (map.current) return; // initialize map only once
@@ -29,148 +53,89 @@ export default function MapDataDownload() {
   //
   useEffect(() => {
     if(!map.current) return;
-    map.current.on('load', () => {
-      // Add a geojson point source.
-      // Heatmap layers also work with a vector tile source.
+    map.current.on('load', async () => {
+      const datageojson = await (await fetch(data)).json();
+      datageojson.features = datageojson.features.map((d) => {
+        d.properties.month = new Date(d.properties.time).getMonth();
+        return d;
+      })
+
       map.current.addSource('earthquakes', {
         'type': 'geojson',
-        'data': 'https://docs.mapbox.com/mapbox-gl-js/assets/earthquakes.geojson'
-      });
-        
-      map.current.addLayer({
-        'id': 'earthquakes-heat',
-        'type': 'heatmap',
-        'source': 'earthquakes',
-        'maxzoom': 9,
-        'paint': {
-          // Increase the heatmap weight based on frequency and property magnitude
-          'heatmap-weight': [
+        data: datageojson
+        });
+         
+        map.current.addLayer({
+          'id': 'earthquake-circles',
+          'type': 'circle',
+          'source': 'earthquakes',
+          'paint': {
+          'circle-color': [
           'interpolate',
           ['linear'],
           ['get', 'mag'],
-          0,
-          0,
           6,
-          1
+          '#FCA107',
+          8,
+          '#7F3121'
           ],
-          // Increase the heatmap color weight weight by zoom level
-          // heatmap-intensity is a multiplier on top of heatmap-weight
-          'heatmap-intensity': [
+          'circle-opacity': 0.75,
+          'circle-radius': [
           'interpolate',
           ['linear'],
-          ['zoom'],
-          0,
-          1,
-          9,
-          3
-          ],
-          // Color ramp for heatmap.  Domain is 0 (low) to 1 (high).
-          // Begin color ramp at 0-stop with a 0-transparancy color
-          // to create a blur-like effect.
-          'heatmap-color': [
-          'interpolate',
-          ['linear'],
-          ['heatmap-density'],
-          0,
-          'rgba(33,102,172,0)',
-          0.2,
-          'rgb(103,169,207)',
-          0.4,
-          'rgb(209,229,240)',
-          0.6,
-          'rgb(253,219,199)',
-          0.8,
-          'rgb(239,138,98)',
-          1,
-          'rgb(178,24,43)'
-          ],
-          // Adjust the heatmap radius by zoom level
-          'heatmap-radius': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          0,
-          2,
-          9,
-          20
-          ],
-          // Transition from heatmap to circle layer by zoom level
-          'heatmap-opacity': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          7,
-          1,
-          9,
-          0
+          ['get', 'mag'],
+          6,
+          20,
+          8,
+          40
           ]
-        }
-      },
-      'waterway-label'
-      );
-        
-      map.current.addLayer({
-        'id': 'earthquakes-point',
-        'type': 'circle',
-        'source': 'earthquakes',
-        'minzoom': 7,
-        'paint': {
-        // Size circle radius by earthquake magnitude and zoom level
-        'circle-radius': [
-        'interpolate',
-        ['linear'],
-        ['zoom'],
-        7,
-        ['interpolate', ['linear'], ['get', 'mag'], 1, 1, 6, 4],
-        16,
-        ['interpolate', ['linear'], ['get', 'mag'], 1, 5, 6, 50]
-        ],
-        // Color circle by earthquake magnitude
-        'circle-color': [
-        'interpolate',
-        ['linear'],
-        ['get', 'mag'],
-        1,
-        'rgba(33,102,172,0)',
-        2,
-        'rgb(103,169,207)',
-        3,
-        'rgb(209,229,240)',
-        4,
-        'rgb(253,219,199)',
-        5,
-        'rgb(239,138,98)',
-        6,
-        'rgb(178,24,43)'
-        ],
-        'circle-stroke-color': 'white',
-        'circle-stroke-width': 1,
-        // Transition from heatmap to circle layer by zoom level
-        'circle-opacity': [
-        'interpolate',
-        ['linear'],
-        ['zoom'],
-        7,
-        0,
-        8,
-        1
-        ]
-        }
-      },
-      'waterway-label'
-      );
-     
+          }
+        });
+         
+        map.current.addLayer({
+          'id': 'earthquake-labels',
+          'type': 'symbol',
+          'source': 'earthquakes',
+          'layout': {
+          'text-field': ['concat', ['to-string', ['get', 'mag']], 'm'],
+          'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+          'text-size': 12
+          },
+          'paint': {
+          'text-color': 'rgba(0,0,0,0.5)'
+          }
+        });
+         
+        // Set filter to first month of the year
+        // 0 = January
+        filterBy(0);
+         
+        document.getElementById('slider').addEventListener('input', (e) => {
+          const month = parseInt(e.target.value, 10);
+          filterBy(month);
+        });
     });
+
   })
   
   return (
     <>
     <div>
-      <div className="sidebar">
-        Longitude: {lng} | Latitude: {lat} | Zoom: {zoom}
-      </div>
       <div ref={mapContainer} className="map-container" />
-    </div>
+      <div class="map-overlay top">
+        <div class="map-overlay-inner">
+          <h2>Significant earthquakes in 2015</h2>
+          <label id="month"></label>
+          <input id="slider" type="range" min="0" max="11" step="1" value="0" />
+        </div>
+        <div class="map-overlay-inner">
+          <div id="legend" class="legend">
+            <div class="bar"></div>
+            <div>Magnitude (m)</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </>
   );
 };
